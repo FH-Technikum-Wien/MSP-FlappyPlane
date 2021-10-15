@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Flappy2.0</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+
+        <style>
+            canvas {
+                display: block;
+                position: absolute;
+                margin: auto;
+                top: 0;
+                bottom: 0;
+                left: 0;
+                right: 0;
+            }
+    
+        </style>
+    </head>
+    
+    <body>
+        <canvas id="static" style="z-index: 0;"></canvas>
+        <canvas id="dynamic" style="z-index: 1;"></canvas>
+
+        <script>
+            // As the plane sprite is pretty big by itself
+            const PLANE_SCALE = 0.65;
+            // Additional offset from the middle to give player more view
+            const PLANE_OFFSET = 50;
+
+            // Used to render moving images (redrawn)
+            var gDynamicContext;
+            // Used to render static images
+            var gStaticContext;
+            // The sprite sheet
+            var gSheet;
+
+            // Aka window width (inner)
+            var gCanvasWidth;
+            // Aka window height (inner)
+            var gCanvasHeight;
+            // Used to scale all images (height defines width)
+            var gCanvasAspectRatio;
+
+            // The ground sprite
+            var gGround;
+            // The x position of the currently visible ground
+            var gGroundPosX = 0;
+            // The x position of the "next" ground
+            var gNextGroundPosX = 0;
+
+            // The plane of the player
+            var gPlane;
+            // The current x position of the plane
+            var gPlayerPosX = 0;
+
+            // Wait for window to load before starting
+            window.onload = function() {
+                main();
+            }
+
+            function main(){
+                // Get window size
+                gCanvasWidth = window.innerWidth;
+                gCanvasHeight = window.innerHeight;
+
+                // Setup static canvas for background
+                var staticCanvas = document.getElementById("static");
+                staticCanvas.width = gCanvasWidth;
+                staticCanvas.height = window.innerHeight;
+                gStaticContext = staticCanvas.getContext("2d");
+
+                // Setup dynamic canvas for moving objects
+                var dynamicCanvas = document.getElementById("dynamic");
+                dynamicCanvas.width = gCanvasWidth;
+                dynamicCanvas.height = gCanvasHeight;
+                gDynamicContext = dynamicCanvas.getContext("2d");
+
+                // Load sprite sheet
+                sheet = new Image();
+                sheet.onload = function(){
+                    runGame();
+                }
+                sheet.src = "sheet.png";
+            }
+
+            function runGame(){
+                // As the background sprite has to cover everything, it defines the aspect ratio
+                var backgroundHeight = 480;
+                gCanvasAspectRatio = gCanvasHeight / backgroundHeight;
+
+                // Add static background
+                var backgroundSprite = new Sprite(sheet, 0, 355, 800, 480, gCanvasAspectRatio);
+                backgroundSprite.draw(gStaticContext, 0, 0);
+
+                // Ground that will be moving to simulate movement
+                gGround = new Sprite(sheet, 0, 142, 808, 71, gCanvasAspectRatio);
+                // Move the second ground to start position
+                gNextGroundPosX = gGround.width * gCanvasAspectRatio;
+
+                // Get animation frames for plane
+                var plane_frame1 = new Sprite(sheet, 330, 1371, 88, 73, gCanvasAspectRatio);
+                var plane_frame2 = new Sprite(sheet, 372, 1132, 88, 73, gCanvasAspectRatio);
+                var plane_frame3 = new Sprite(sheet, 222, 1562, 88, 73, gCanvasAspectRatio);
+                gPlane = new Plane(plane_frame1, plane_frame2, plane_frame3);
+
+                // Main loop
+                var loop = function(){
+                    // TODO: Framerate independent
+                    update();
+                    render();
+                    window.requestAnimationFrame(loop)
+                }
+                window.requestAnimationFrame(loop)
+            }
+
+            function update(){
+                // If the current ground is out of view, update positions
+                if(gPlane.posX > gNextGroundPosX){
+                    gGroundPosX = gNextGroundPosX;
+                    gNextGroundPosX = gNextGroundPosX + gGround.width * gCanvasAspectRatio;
+                }
+                // TODO: Add input
+                // TODO: Add collision
+                // Placeholder movement
+                gPlane.posX += 1;
+            }
+
+            
+            function render(){      
+                // TODO: Add second canvas for drawing?          
+                // Remove everything from dynamic canvas
+                gDynamicContext.clearRect(0,0, gCanvasWidth, gCanvasHeight);
+                renderGrounds(gDynamicContext);
+                // TODO: Add animation speed (framerate independent)
+                renderPlane(gDynamicContext);
+                // TODO: Add spikes
+            }
+
+            function renderGrounds(context){
+                // Draw current ground
+                gGround.draw(context, gGroundPosX - gPlane.posX, gCanvasHeight - gGround.height * gCanvasAspectRatio);
+                // Draw ground out of view
+                gGround.draw(context, gNextGroundPosX - gPlane.posX, gCanvasHeight - gGround.height * gCanvasAspectRatio);
+            }
+
+            function renderPlane(context){
+                // Move plane to middle (and apply offset)
+                var x = gCanvasWidth / 2 - gPlane.plane_frames[0].width / 2 - PLANE_OFFSET;
+                gPlane.draw(context, x, gCanvasHeight / 2, PLANE_SCALE);
+            }
+
+            // A sprite consists of an image, size and position
+            class Sprite{
+                constructor(image, x, y, width, height, aspectRatio){
+                    this.image = image;
+                    this.x = x;
+                    this.y = y;
+                    this.width = width;
+                    this.height = height;
+                    this.aspectRatio = aspectRatio
+                }
+
+                // Draws the image at the specified pixel position
+                draw(context, x, y, scale = 1){
+                    context.drawImage(
+                        this.image, 
+                        this.x, 
+                        this.y, 
+                        this.width, 
+                        this.height, 
+                        x, 
+                        y, 
+                        this.width * this.aspectRatio * scale, 
+                        this.height * this.aspectRatio * scale)
+                }
+            }
+
+            // Player controlled image
+            // Contains an animation and positions
+            class Plane{
+                constructor(plane_frame1, plane_frame2, plane_frame3){
+                    this.plane_frames = [];
+                    this.plane_frames.push(plane_frame1);
+                    this.plane_frames.push(plane_frame2);
+                    this.plane_frames.push(plane_frame3);
+                    this.currentFrameIndex = 0;
+                    this.posX = 0;
+                    this.posY = 0;
+                }
+
+                draw(context, x, y, scale){
+                    var currentFrame = this.plane_frames[this.currentFrameIndex];
+                    currentFrame.draw(context, x, y, scale);
+                    this.currentFrameIndex = ++this.currentFrameIndex % this.plane_frames.length;
+                }
+            }
+
+        </script>
+    </body>
+</html>

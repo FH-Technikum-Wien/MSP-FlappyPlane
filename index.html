@@ -31,6 +31,7 @@
 
             const GRAVITY = 300;
             
+            const PLANE_CIRCLE_COLLISION_RADIUS = 50;
             // The velocity change on touch/mouse press
             const PLANE_JUMP_VELOCITY = 250;
             // The speed at which the world scrolls
@@ -150,6 +151,7 @@
                 // As the background sprite has to cover everything, it defines the aspect ratio
                 var backgroundHeight = 480;
                 gCanvasAspectRatio = gCanvasHeight / backgroundHeight;
+                console.log(gCanvasAspectRatio);
 
                 // Add static background
                 var backgroundSprite = new Sprite(sheet, 0, 355, 800, 480, gCanvasAspectRatio);
@@ -226,12 +228,16 @@
             }
 
             function update(delta){
+                // Pause everything in GameOver screen
                 if(gGameState == GameState.GAME_OVER){
                     return;                    
                 }
 
-                // Move along x
-                gPlane.worldPosX += PLANE_SPEED * delta;
+                // Only move world if player isn't dead
+                if(!gPlane.dead){
+                    // Move along x
+                    gPlane.worldPosX += PLANE_SPEED * delta;
+                }
 
                 // If the current ground is out of view, update positions
                 if(gPlane.worldPosX > gNextGroundPosX){
@@ -239,12 +245,18 @@
                         gNextGroundPosX = gNextGroundPosX + gGround.width * gCanvasAspectRatio;
                 }
 
-                // TODO: Add collision
+                // Nothing to do if player isn't playing
                 if(gGameState != GameState.PLAYING){
-                    return
+                    return;
                 }
                 
+                // Update player physics
                 gPlane.update(delta);
+
+                // Nothing to do if player died
+                if(gPlane.dead){
+                    return;
+                }
 
                 // If player reached middle spike, move left to right
                 if(gPlane.worldPosX > gSpikes[1].x){
@@ -256,6 +268,17 @@
                     newRightSpike.x += gSpikeDistance * 3;
                     gSpikes[2] = newRightSpike;
                 }
+
+                // Check if player is colliding with 
+                gSpikes.forEach(spike => {
+                    let planeX = gPlane.posX + gPlane.plane_frames[0].width / 2 * gCanvasAspectRatio / 2
+                    let planeY = gPlane.posY + gPlane.plane_frames[0].height / 2 * gCanvasAspectRatio / 2
+                    if(spike.isCollidingWithCircle(planeX, planeY, PLANE_CIRCLE_COLLISION_RADIUS, gPlane.worldPosX)){
+                        gPlane.dead = true;
+                        gPlane.velocity = 0;
+                        return;
+                    }
+                });
             }
             
             function render(delta){              
@@ -268,6 +291,23 @@
 
                 renderGrounds(gDynamicContext);
                 renderPlane(gDynamicContext, delta);
+            }
+
+            function renderGrounds(context){
+                // Draw current ground
+                gGround.draw(context, gGroundPosX - gPlane.worldPosX, gCanvasHeight - gGround.height * gCanvasAspectRatio);
+                // Draw ground out of view
+                gGround.draw(context, gNextGroundPosX - gPlane.worldPosX, gCanvasHeight - gGround.height * gCanvasAspectRatio);
+            }
+
+            function renderPlane(context, delta){
+                gPlane.draw(context, PLANE_SCALE, delta);
+            }
+
+            function renderSpikes(context) {
+                gSpikes.forEach(spike => {
+                    spike.draw(context, gPlane.worldPosX);
+                });
             }
 
             // Resets all necessary variables
@@ -300,27 +340,8 @@
                 gUIContext.clearRect(0,0, gCanvasWidth, gCanvasHeight);
             }
 
-            function renderGrounds(context){
-                // Draw current ground
-                gGround.draw(context, gGroundPosX - gPlane.worldPosX, gCanvasHeight - gGround.height * gCanvasAspectRatio);
-                // Draw ground out of view
-                gGround.draw(context, gNextGroundPosX - gPlane.worldPosX, gCanvasHeight - gGround.height * gCanvasAspectRatio);
-            }
-
-            function renderPlane(context, delta){
-                // Move plane to middle (and apply offset)
-                var x = gCanvasWidth / 2 - (gPlane.plane_frames[0].width * gCanvasAspectRatio / 4) - PLANE_OFFSET;
-                gPlane.draw(context, PLANE_SCALE, delta);
-            }
-
-            function renderSpikes(context) {
-                gSpikes.forEach(spike => {
-                    spike.draw(context, gPlane.worldPosX);
-                });
-            }
-
             function addPlayButton(){
-                var buttonX = gCanvasWidth / 2 - (gButtonLarge.width * gCanvasAspectRatio / 4);
+                var buttonX = gCanvasWidth / 2 - (gButtonLarge.width / 2 * gCanvasAspectRatio / 2);
                 var buttonY = gCanvasHeight / 2;
                 var buttonScale = 0.5;
                 var buttonWidth = gButtonLarge.width * gCanvasAspectRatio * buttonScale;
@@ -335,25 +356,25 @@
                     );
                     gLetterP.draw(
                         gUIContext,
-                        gCanvasWidth / 2 - (gButtonLarge.width * 0.95 * gCanvasAspectRatio / 4),
+                        gCanvasWidth / 2 - (gButtonLarge.width / 2 * 0.95 * gCanvasAspectRatio / 2),
                         gCanvasHeight / 2, 
                         buttonScale
                     );
                     gLetterL.draw(
                         gUIContext,
-                        gCanvasWidth / 2 - (gButtonLarge.width * 0.5 * gCanvasAspectRatio / 4),
+                        gCanvasWidth / 2 - (gButtonLarge.width / 2 * 0.5 * gCanvasAspectRatio / 2),
                         gCanvasHeight / 2, 
                         buttonScale
                     );
                     gLetterA.draw(
                         gUIContext,
-                        gCanvasWidth / 2 - (gButtonLarge.width * 0.05 * gCanvasAspectRatio / 4),
+                        gCanvasWidth / 2 - (gButtonLarge.width / 2 * 0.05 * gCanvasAspectRatio / 2),
                         gCanvasHeight / 2, 
                         buttonScale
                     );
                     gLetterY.draw(
                         gUIContext,
-                        gCanvasWidth / 2 + (gButtonLarge.width * 0.4 * gCanvasAspectRatio / 4),
+                        gCanvasWidth / 2 + (gButtonLarge.width / 2 * 0.4 * gCanvasAspectRatio / 2),
                         gCanvasHeight / 2, 
                         buttonScale
                     );
@@ -431,6 +452,17 @@
                         this.x - x, 
                         gCanvasHeight - this.spikeUp.height * gCanvasAspectRatio + this.gap / 2 - this.height_offset
                     );
+
+                    let spikeDownX = this.x - x + this.spikeDown.width;
+                    let spikeDownY = -this.gap / 2 - this.height_offset + this.spikeDown.height * gCanvasAspectRatio;
+                    let spikeUpX = this.x - x + this.spikeUp.width;
+                    let spikeUpY = gCanvasHeight - this.spikeUp.height * gCanvasAspectRatio + this.gap / 2 - this.height_offset;
+                    gDynamicContext.beginPath();
+                    gDynamicContext.arc(spikeDownX, spikeDownY, 10, 0, 2 * Math.PI);
+                    gDynamicContext.stroke();
+                    gDynamicContext.beginPath();
+                    gDynamicContext.arc(spikeUpX, spikeUpY, 10, 0, 2 * Math.PI);
+                    gDynamicContext.stroke();
                 }
 
                 setRandomGapAndHeight(gapMinMax, heightMinMax){
@@ -442,8 +474,17 @@
                     return Math.random() * (max - min) + min;
                 }
 
-                isCollidingWithCircle(x, r){
-
+                isCollidingWithCircle(x, y, r, worldPosX){
+                    // Check spike tip
+                    let spikeDownX = this.x - x + this.spikeDown.width;
+                    let spikeDownY = -this.gap / 2 - this.height_offset + this.spikeDown.height * gCanvasAspectRatio;
+                    let spikeUpX = this.x - x + this.spikeUp.width;
+                    let spikeUpY = gCanvasHeight - this.spikeUp.height * gCanvasAspectRatio + this.gap / 2 - this.height_offset;
+                    
+                    if(Math.pow(spikeDownX - worldPosX, 2) + Math.pow(spikeDownY - y, 2) < (r * r) ||
+                        Math.pow(spikeUpX - worldPosX, 2) + Math.pow(spikeUpY - y, 2) < (r * r)){
+                        return true;
+                    }
                 }
             }
 
@@ -465,7 +506,7 @@
                     this.animationStep = animationSpeed / this.plane_frames.length;
 
                     this.velocity = 0;
-                    this.alive = true;
+                    this.dead = false;
                 }
 
                 reset(){
@@ -475,7 +516,7 @@
                     this.posY = this.startY;
                     this.animationAccumulator = 0;
                     this.velocity = 0;
-                    this.alive = true;
+                    this.dead = false;
                 }
 
                 update(delta){
@@ -500,19 +541,26 @@
                     }
 
                     var currentFrame = this.plane_frames[this.currentFrameIndex];
-                    
                     currentFrame.draw(context, this.posX, this.posY, scale);
+                    gDynamicContext.beginPath();
+                    gDynamicContext.arc(this.posX + this.plane_frames[0].width / 2 * gCanvasAspectRatio / 2, 
+                                        this.posY + this.plane_frames[0].height / 2 * gCanvasAspectRatio / 2, 
+                                        PLANE_CIRCLE_COLLISION_RADIUS, 0, 2 * Math.PI);
+                    gDynamicContext.stroke();
                 }
 
                 die(){
                     // Reset velocity
                     this.velocity = 0;
-                    this.alive = false;
+                    this.dead = true;
                     // Tell game that player died
                     gGameState = GameState.GAME_OVER;
                 }
 
                 jump(){
+                    if(this.dead){
+                        return;
+                    }
                     // Prevent player from flying to the moon
                     if(gPlane.posY > 0){
                         gPlane.velocity = -PLANE_JUMP_VELOCITY;

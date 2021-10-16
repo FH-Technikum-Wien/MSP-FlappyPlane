@@ -23,21 +23,36 @@
         <canvas id="static" style="z-index: 0;"></canvas>
         <canvas id="dynamic" style="z-index: 1;"></canvas>
         <canvas id="ui" style="z-index: 2;"></canvas>
+        <canvas id="effects" style="z-index: 3;"></canvas>
 
         <div id="PlayButton"></div>
 
         <script>
-            const SHOW_COLLISION_SHAPES = true;
+            ///////////////////////
+            /// GLOBAL SETTINGS ///
+            ///////////////////////
 
+            // Used for debugging
+            const SHOW_COLLISION_SHAPES = false;
+            // Fixed step used for physics update
             const FIXED_DELTA_TIME = 1.0/60.0;
 
-            const GRAVITY = 300;
+            // Delays the game over screen, when the player dies to the ground
+            const PLAYER_DEAD_FROM_GROUND_DELAY = 0.5
             
+            
+            //////////////////////
+            /// PLANE SETTINGS ///
+            //////////////////////
+
+            // Gravity applied to the player
+            const GRAVITY = 500;
+            // The radius used for collision detection
             const PLANE_CIRCLE_COLLISION_RADIUS = 40;
             // The velocity change on touch/mouse press
-            const PLANE_JUMP_VELOCITY = 250;
+            const PLANE_JUMP_VELOCITY = 300;
             // The speed at which the world scrolls
-            const PLANE_SPEED = 100;
+            const PLANE_SPEED = 150;
             // As the plane sprite is pretty big by itself
             const PLANE_SCALE = 0.55;
             // Additional offset from the middle to give player more view
@@ -45,12 +60,32 @@
             // Defines the duration of the whole animation 
             const PLANE_ANIMATION_SPEED = 0.2;
 
+
+            //////////////////////
+            /// SPIKE SETTINGS ///
+            //////////////////////
+
             // CanvasWidth is normal distance, this is applied to it
-            const SPIKE_DISTANCE_FACTOR = 0.8;
+            const SPIKE_DISTANCE_FACTOR = 0.75;
             // How much the spikes can vary in gap
             const SPIKE_GAP_RANGE = [150, 280];
             // How much the spikes can vary in height
             const SPIKE_HEIGHT_RANGE = [-50, 100];
+
+
+            ////////////////////////
+            /// EFFECTS SETTINGS ///
+            ////////////////////////
+
+            // The length of the effect
+            const SCREEN_FLASH_DURATION = 0.5;
+            // The refresh rate of the effect
+            const SCREEN_FLASH_REFRESH_RATE = 1.0 / 30.0;
+
+
+            ////////////////////////
+            /// GLOBAL VARIABLES ///
+            ////////////////////////
 
             // Used to render moving images (redrawn)
             var gDynamicContext;
@@ -58,6 +93,9 @@
             var gStaticContext;
             // Used for displaying the HUD and menus
             var gUIContext;
+            // Used for displaying effects
+            var gUIContext;
+
             // The sprite sheet
             var gSheet;
 
@@ -78,7 +116,7 @@
             // The plane of the player
             var gPlane;
 
-
+            // Play button
             var gButtonPlay;
             var gButtonLarge;
             var gLetterP;
@@ -131,6 +169,12 @@
                 uiCanvas.width = gCanvasWidth;
                 uiCanvas.height = gCanvasHeight;
                 gUIContext = uiCanvas.getContext("2d");
+
+                // Setup UI canvas for displaying HUD and menus
+                var effectsCanvas = document.getElementById("effects");
+                effectsCanvas.width = gCanvasWidth;
+                effectsCanvas.height = gCanvasHeight;
+                gEffectsContext = effectsCanvas.getContext("2d");
 
                 // Mouse events
                 window.onmousedown = function(mouse){
@@ -235,7 +279,7 @@
                 }
 
                 // Only move world if player isn't dead
-                if(!gPlane.dead){
+                if(!gPlane.isDying){
                     // Move along x
                     gPlane.worldPosX += PLANE_SPEED * delta;
                 }
@@ -255,7 +299,7 @@
                 gPlane.update(delta);
 
                 // Nothing to do if player died
-                if(gPlane.dead){
+                if(gPlane.isDying){
                     return;
                 }
 
@@ -266,26 +310,24 @@
                     gSpikes[1] = gSpikes[2];
                     // Give it new height and gap
                     newRightSpike.setRandomGapAndHeight(SPIKE_GAP_RANGE, SPIKE_HEIGHT_RANGE);
-                    newRightSpike.x += gSpikeDistance * 3;
+                    newRightSpike.x = gSpikes[2].x + gSpikeDistance;
                     gSpikes[2] = newRightSpike;
                 }
 
-                // Check if player is colliding with 
-                gSpikes.forEach(spike => {
-                    let planeX = gPlane.posX + gPlane.plane_frames[0].width / 2 * PLANE_SCALE * gCanvasAspectRatio;
-                    let planeY = gPlane.posY + gPlane.plane_frames[0].height / 2 * PLANE_SCALE * gCanvasAspectRatio;
-                    if(spike.isCollidingWithCircle(planeX, planeY, PLANE_CIRCLE_COLLISION_RADIUS, gPlane.worldPosX)){
-                        gPlane.dead = true;
-                        gPlane.velocity = 0;
-                        return;
-                    }
-                });
+                // Check if plane collides with any spikes
+                let planeX = gPlane.posX + gPlane.plane_frames[0].width / 2 * PLANE_SCALE * gCanvasAspectRatio;
+                let planeY = gPlane.posY + gPlane.plane_frames[0].height / 2 * PLANE_SCALE * gCanvasAspectRatio;
+                // Only necessary to check middle spikes
+                if(gSpikes[1].isCollidingWithCircle(planeX, planeY, PLANE_CIRCLE_COLLISION_RADIUS, gPlane.worldPosX)){
+                    gPlane.die();
+                }
             }
             
             function render(delta){              
                 // Remove everything from dynamic canvas
                 gDynamicContext.clearRect(0,0, gCanvasWidth, gCanvasHeight);
 
+                // Hide spikes in the start screen (scrolling of the world would otherwise reveal them)
                 if(gGameState != GameState.START_MENU){
                     renderSpikes(gDynamicContext);
                 }
@@ -313,27 +355,26 @@
 
             // Resets all necessary variables
             function resetGame() {
+                // Re-setup spikes resets them
                 setupSpikes();
                 gGroundPosX = 0;
                 gNextGroundPosX = gGround.width * gCanvasAspectRatio;
                 gPlane.reset();
             }
 
+            // Creates three spikes: Left, middle, right
+            // The player is only able to see two at the same time -> used to move spikes unnoticed
             function setupSpikes() {
                 gSpikes.length = 0;
-                // Add three spikes, 2 visible at once, one can be moved
-                let spike = new Spike(gSpikeUp, gSpikeDown, gCanvasWidth);
+                let spike = new Spike(gSpikeUp, gSpikeDown, -gCanvasWidth);
                 spike.setRandomGapAndHeight(SPIKE_GAP_RANGE, SPIKE_HEIGHT_RANGE);
                 gSpikes.push(spike);
-                spike = new Spike(gSpikeUp, gSpikeDown,  gCanvasWidth + gSpikeDistance);
+                spike = new Spike(gSpikeUp, gSpikeDown,  gCanvasWidth);
                 spike.setRandomGapAndHeight(SPIKE_GAP_RANGE, SPIKE_HEIGHT_RANGE);
                 gSpikes.push(spike);
-                spike = new Spike(gSpikeUp, gSpikeDown, gCanvasWidth + gSpikeDistance * 2);
+                spike = new Spike(gSpikeUp, gSpikeDown, gCanvasWidth + gSpikeDistance);
                 spike.setRandomGapAndHeight(SPIKE_GAP_RANGE, SPIKE_HEIGHT_RANGE);
                 gSpikes.push(spike);
-
-                gSpikePosX = gCanvasWidth;
-                gNextSpikePosX = gCanvasWidth + gSpikeDistance;
             }
 
             // Clears the UI
@@ -341,6 +382,7 @@
                 gUIContext.clearRect(0,0, gCanvasWidth, gCanvasHeight);
             }
 
+            // Adds the play button to the UICanvas
             function addPlayButton(){
                 var buttonScale = 0.5;
                 var buttonX = gCanvasWidth / 2 - (gButtonLarge.width / 2 * buttonScale * gCanvasAspectRatio);
@@ -349,6 +391,7 @@
                 var buttonHeight = gButtonLarge.height * gCanvasAspectRatio * buttonScale;
                 
                 gButtonPlay = new Button(buttonX, buttonY, buttonWidth, buttonHeight)
+                // Draw all necessary sprites
                 gButtonLarge.draw(
                         gUIContext, 
                         buttonX, 
@@ -381,16 +424,40 @@
                     );
             }
 
+            // All on-click events
             function onMouseClick(mouse){
+                // Jump event
                 if(gGameState == GameState.PLAYING){
                     gPlane.jump();
                 }
 
+                // Play butten pressed event
                 if(gGameState == GameState.START_MENU || gGameState == GameState.GAME_OVER){
                     if(gButtonPlay.isInside(mouse.clientX, mouse.clientY)){
                         gGameState = GameState.PLAYING;
                     }
                 }
+            }
+
+            // Shows the screen flash animation with a specified duration and refresh rate (in seconds)
+            function showScreenFlash(duration, refreshRate) {
+                var step = 1.0 / (duration / refreshRate);
+                gEffectsContext.fillStyle = "#FFFFFF";
+                gEffectsContext.fillRect(0, 0, gCanvasWidth, gCanvasHeight)
+                var currentAlpha = 1.0;
+
+                function screenFlashAnimation() {
+                    gEffectsContext.clearRect(0, 0, gCanvasWidth, gCanvasHeight);
+                    currentAlpha -= step;
+                    gEffectsContext.globalAlpha = currentAlpha;
+                    gEffectsContext.fillStyle = "#FFFFFF";
+                    gEffectsContext.fillRect(0, 0, gCanvasWidth, gCanvasHeight)
+                    if(currentAlpha <= 0){
+                        clearInterval(screenFlashInterval);
+                    }
+                }
+
+                var screenFlashInterval = setInterval(screenFlashAnimation, refreshRate * 1000);
             }
 
             // A sprite consists of an image, size and position
@@ -427,6 +494,7 @@
                     this.height = height;
                 }
                 
+                // Whether the provided mouse position is inside this button
                 isInside(mouseX, mouseY){
                     return  mouseX >= this.x && mouseX <= this.x + this.width &&
                             mouseY >= this.y && mouseY <= this.y + this.height;
@@ -443,18 +511,20 @@
                 }
 
                 draw(context, worldPos){
+                    // Draw upper spike
                     this.spikeDown.draw(
                         context, 
                         this.x - worldPos, 
                         -this.gap / 2 - this.height_offset
                     );
+                    // Draw lower spike
                     this.spikeUp.draw(
                         context, 
                         this.x - worldPos, 
                         gCanvasHeight - this.spikeUp.height * gCanvasAspectRatio + this.gap / 2 - this.height_offset
                     );
 
-
+                    // Render spike tip collision point and spike collision edge
                     if(SHOW_COLLISION_SHAPES){
                         let planeX = gPlane.posX + gPlane.plane_frames[0].width / 2 * PLANE_SCALE * gCanvasAspectRatio;
                         let planeY = gPlane.posY + gPlane.plane_frames[0].height / 2 * PLANE_SCALE * gCanvasAspectRatio;
@@ -489,15 +559,13 @@
 
                 }
 
+                // Sets a random gap and height for this spike pair
                 setRandomGapAndHeight(gapMinMax, heightMinMax){
                     this.gap = this.randomBetween(gapMinMax[0], gapMinMax[1]);
                     this.height_offset = this.randomBetween(heightMinMax[0], heightMinMax[1]);
                 }
 
-                randomBetween(min, max) {
-                    return Math.random() * (max - min) + min;
-                }
-
+                // Whether the provided circle collides with the upper or lower spike
                 isCollidingWithCircle(x, y, r, worldPos){
                     // Check spike tip
                     let spikeDownX = this.x - worldPos + this.spikeDown.width * 0.61 * gCanvasAspectRatio;
@@ -510,7 +578,8 @@
                             return true;
                     }
 
-                    // Check spike edge
+                    // Check spike edge 
+                    // Using projection and distance to the projection point
                     let spikeDownA = [this.x - worldPos, - this.gap / 2 - this.height_offset];
                     let spikeDownB = [spikeDownX, spikeDownY];
                     let spikeUpA = [this.x - worldPos, gCanvasHeight + this.gap / 2 - this.height_offset];
@@ -537,13 +606,17 @@
                     }
                 }
 
+                randomBetween(min, max) {
+                    return Math.random() * (max - min) + min;
+                }
+                
+                // See: https://stackoverflow.com/a/64816824/13599159
                 dot(a, b) {
                     return a.map((x, i) => a[i] * b[i]).reduce((m, n) => m + n);
                 }
             }
 
-            // Player controlled image
-            // Contains an animation and positions
+            // Player controlled plane class
             class Plane{
                 constructor(plane_frame1, plane_frame2, plane_frame3, animationSpeed){
                     this.plane_frames = [];
@@ -560,9 +633,11 @@
                     this.animationStep = animationSpeed / this.plane_frames.length;
 
                     this.velocity = 0;
+                    this.isDying = false;
                     this.dead = false;
                 }
 
+                // Resets all necessary data
                 reset(){
                     this.currentFrameIndex = 0;
                     this.worldPosX = 0;
@@ -570,34 +645,49 @@
                     this.posY = this.startY;
                     this.animationAccumulator = 0;
                     this.velocity = 0;
+                    this.isDying = false;
                     this.dead = false;
                 }
 
                 update(delta){
+                    // Skip if already dead
+                    if(this.dead){
+                        return;
+                    }
+
                     // Apply velocity to y
                     this.posY += this.velocity * delta;
                     // Add gravity
                     this.velocity += GRAVITY * delta;
 
+                    // Check whether the plane reached the ground
                     if(this.posY > gCanvasHeight - gGround.height * gGround.aspectRatio){
-                        this.die();
+                        // If the player reached the ground before dying, let him die
+                        if(!this.isDying){
+                            this.die();
+                            this.dead = true;
+                            setTimeout(() => this.setDead(), PLAYER_DEAD_FROM_GROUND_DELAY * 1000)
+                        }else {
+                            this.setDead();
+                        }
                     }
                 }
 
                 draw(context, scale, delta){
                     // Only stop animation if in game over screen
                     if(gGameState != GameState.GAME_OVER){
+                        // Get current frame depending on animation progress
                         this.animationAccumulator += delta;
                         if(this.animationAccumulator >= this.animationStep){
                             this.currentFrameIndex = ++this.currentFrameIndex % this.plane_frames.length;
                             this.animationAccumulator -= this.animationStep
                         }
                     }
-
+                    // Render current frame
                     var currentFrame = this.plane_frames[this.currentFrameIndex];
                     currentFrame.draw(context, this.posX, this.posY, scale);
 
-
+                    // Display collision circle
                     if(SHOW_COLLISION_SHAPES){
                         gDynamicContext.beginPath();
                         gDynamicContext.arc(this.posX + this.plane_frames[0].width / 4 * gCanvasAspectRatio, 
@@ -607,7 +697,15 @@
                     }
                 }
 
+                // Shows the screen flash effect
                 die(){
+                    this.velocity = 0;
+                    this.isDying = true;
+                    showScreenFlash(SCREEN_FLASH_DURATION, SCREEN_FLASH_REFRESH_RATE);
+                }
+
+                // Locks the plane and updates the gameState
+                setDead(){
                     // Reset velocity
                     this.velocity = 0;
                     this.dead = true;
@@ -615,8 +713,10 @@
                     gGameState = GameState.GAME_OVER;
                 }
 
+                // Jump action
                 jump(){
-                    if(this.dead){
+                    // Skip if in the process of dying (or if dead)
+                    if(this.isDying){
                         return;
                     }
                     // Prevent player from flying to the moon

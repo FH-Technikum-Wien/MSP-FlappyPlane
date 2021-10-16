@@ -27,11 +27,13 @@
         <div id="PlayButton"></div>
 
         <script>
+            const SHOW_COLLISION_SHAPES = true;
+
             const FIXED_DELTA_TIME = 1.0/60.0;
 
             const GRAVITY = 300;
             
-            const PLANE_CIRCLE_COLLISION_RADIUS = 50;
+            const PLANE_CIRCLE_COLLISION_RADIUS = 40;
             // The velocity change on touch/mouse press
             const PLANE_JUMP_VELOCITY = 250;
             // The speed at which the world scrolls
@@ -151,7 +153,6 @@
                 // As the background sprite has to cover everything, it defines the aspect ratio
                 var backgroundHeight = 480;
                 gCanvasAspectRatio = gCanvasHeight / backgroundHeight;
-                console.log(gCanvasAspectRatio);
 
                 // Add static background
                 var backgroundSprite = new Sprite(sheet, 0, 355, 800, 480, gCanvasAspectRatio);
@@ -271,8 +272,8 @@
 
                 // Check if player is colliding with 
                 gSpikes.forEach(spike => {
-                    let planeX = gPlane.posX + gPlane.plane_frames[0].width / 2 * gCanvasAspectRatio / 2
-                    let planeY = gPlane.posY + gPlane.plane_frames[0].height / 2 * gCanvasAspectRatio / 2
+                    let planeX = gPlane.posX + gPlane.plane_frames[0].width / 2 * PLANE_SCALE * gCanvasAspectRatio;
+                    let planeY = gPlane.posY + gPlane.plane_frames[0].height / 2 * PLANE_SCALE * gCanvasAspectRatio;
                     if(spike.isCollidingWithCircle(planeX, planeY, PLANE_CIRCLE_COLLISION_RADIUS, gPlane.worldPosX)){
                         gPlane.dead = true;
                         gPlane.velocity = 0;
@@ -341,9 +342,9 @@
             }
 
             function addPlayButton(){
-                var buttonX = gCanvasWidth / 2 - (gButtonLarge.width / 2 * gCanvasAspectRatio / 2);
-                var buttonY = gCanvasHeight / 2;
                 var buttonScale = 0.5;
+                var buttonX = gCanvasWidth / 2 - (gButtonLarge.width / 2 * buttonScale * gCanvasAspectRatio);
+                var buttonY = gCanvasHeight / 2;
                 var buttonWidth = gButtonLarge.width * gCanvasAspectRatio * buttonScale;
                 var buttonHeight = gButtonLarge.height * gCanvasAspectRatio * buttonScale;
                 
@@ -356,25 +357,25 @@
                     );
                     gLetterP.draw(
                         gUIContext,
-                        gCanvasWidth / 2 - (gButtonLarge.width / 2 * 0.95 * gCanvasAspectRatio / 2),
+                        gCanvasWidth / 2 - (gButtonLarge.width / 2 * buttonScale * 0.95 * gCanvasAspectRatio),
                         gCanvasHeight / 2, 
                         buttonScale
                     );
                     gLetterL.draw(
                         gUIContext,
-                        gCanvasWidth / 2 - (gButtonLarge.width / 2 * 0.5 * gCanvasAspectRatio / 2),
+                        gCanvasWidth / 2 - (gButtonLarge.width / 2 * buttonScale * 0.5 * gCanvasAspectRatio),
                         gCanvasHeight / 2, 
                         buttonScale
                     );
                     gLetterA.draw(
                         gUIContext,
-                        gCanvasWidth / 2 - (gButtonLarge.width / 2 * 0.05 * gCanvasAspectRatio / 2),
+                        gCanvasWidth / 2 - (gButtonLarge.width / 2 * buttonScale * 0.05 * gCanvasAspectRatio),
                         gCanvasHeight / 2, 
                         buttonScale
                     );
                     gLetterY.draw(
                         gUIContext,
-                        gCanvasWidth / 2 + (gButtonLarge.width / 2 * 0.4 * gCanvasAspectRatio / 2),
+                        gCanvasWidth / 2 + (gButtonLarge.width / 2 * buttonScale * 0.4 * gCanvasAspectRatio),
                         gCanvasHeight / 2, 
                         buttonScale
                     );
@@ -441,28 +442,51 @@
                     this.height_offset = 0;
                 }
 
-                draw(context, x){
+                draw(context, worldPos){
                     this.spikeDown.draw(
                         context, 
-                        this.x - x, 
+                        this.x - worldPos, 
                         -this.gap / 2 - this.height_offset
                     );
                     this.spikeUp.draw(
                         context, 
-                        this.x - x, 
+                        this.x - worldPos, 
                         gCanvasHeight - this.spikeUp.height * gCanvasAspectRatio + this.gap / 2 - this.height_offset
                     );
 
-                    let spikeDownX = this.x - x + this.spikeDown.width;
-                    let spikeDownY = -this.gap / 2 - this.height_offset + this.spikeDown.height * gCanvasAspectRatio;
-                    let spikeUpX = this.x - x + this.spikeUp.width;
-                    let spikeUpY = gCanvasHeight - this.spikeUp.height * gCanvasAspectRatio + this.gap / 2 - this.height_offset;
-                    gDynamicContext.beginPath();
-                    gDynamicContext.arc(spikeDownX, spikeDownY, 10, 0, 2 * Math.PI);
-                    gDynamicContext.stroke();
-                    gDynamicContext.beginPath();
-                    gDynamicContext.arc(spikeUpX, spikeUpY, 10, 0, 2 * Math.PI);
-                    gDynamicContext.stroke();
+
+                    if(SHOW_COLLISION_SHAPES){
+                        let planeX = gPlane.posX + gPlane.plane_frames[0].width / 2 * PLANE_SCALE * gCanvasAspectRatio;
+                        let planeY = gPlane.posY + gPlane.plane_frames[0].height / 2 * PLANE_SCALE * gCanvasAspectRatio;
+
+                        let spikeDownX = this.x - worldPos + this.spikeDown.width * 0.61 * gCanvasAspectRatio;
+                        let spikeDownY = -this.gap / 2 - this.height_offset + this.spikeDown.height * gCanvasAspectRatio;
+                        let spikeUpX = this.x - worldPos + this.spikeUp.width * 0.61 * gCanvasAspectRatio;
+                        let spikeUpY = gCanvasHeight - this.spikeUp.height * gCanvasAspectRatio + this.gap / 2 - this.height_offset;
+
+                        gDynamicContext.beginPath();
+                        gDynamicContext.fillRect(spikeDownX - 3, spikeDownY - 3, 6, 6);
+                        gDynamicContext.stroke();
+                        gDynamicContext.beginPath();
+                        gDynamicContext.fillRect(spikeUpX - 3, spikeUpY - 3, 6, 6);
+                        gDynamicContext.stroke();
+
+                        let spikeDownA = [this.x - worldPos, - this.gap / 2 - this.height_offset];
+                        let spikeDownB = [spikeDownX, spikeDownY];
+                        let spikeUpA = [this.x - worldPos, gCanvasHeight + this.gap / 2 - this.height_offset];
+                        let spikeUpB = [spikeUpX, spikeUpY];
+
+                        gDynamicContext.beginPath();
+                        gDynamicContext.moveTo(spikeDownA[0], spikeDownA[1]);
+                        gDynamicContext.lineTo(spikeDownB[0], spikeDownB[1]);
+                        gDynamicContext.stroke();
+
+                        gDynamicContext.beginPath();
+                        gDynamicContext.moveTo(spikeUpA[0], spikeUpA[1]);
+                        gDynamicContext.lineTo(spikeUpB[0], spikeUpB[1]);
+                        gDynamicContext.stroke();
+                    }
+
                 }
 
                 setRandomGapAndHeight(gapMinMax, heightMinMax){
@@ -474,17 +498,47 @@
                     return Math.random() * (max - min) + min;
                 }
 
-                isCollidingWithCircle(x, y, r, worldPosX){
+                isCollidingWithCircle(x, y, r, worldPos){
                     // Check spike tip
-                    let spikeDownX = this.x - x + this.spikeDown.width;
+                    let spikeDownX = this.x - worldPos + this.spikeDown.width * 0.61 * gCanvasAspectRatio;
                     let spikeDownY = -this.gap / 2 - this.height_offset + this.spikeDown.height * gCanvasAspectRatio;
-                    let spikeUpX = this.x - x + this.spikeUp.width;
+                    let spikeUpX = this.x - worldPos + this.spikeUp.width * 0.61 * gCanvasAspectRatio;
                     let spikeUpY = gCanvasHeight - this.spikeUp.height * gCanvasAspectRatio + this.gap / 2 - this.height_offset;
                     
-                    if(Math.pow(spikeDownX - worldPosX, 2) + Math.pow(spikeDownY - y, 2) < (r * r) ||
-                        Math.pow(spikeUpX - worldPosX, 2) + Math.pow(spikeUpY - y, 2) < (r * r)){
-                        return true;
+                    if(Math.pow(spikeDownX - x, 2) + Math.pow(spikeDownY - y, 2) < (r * r) ||
+                        Math.pow(spikeUpX - x, 2) + Math.pow(spikeUpY - y, 2) < (r * r)){
+                            return true;
                     }
+
+                    // Check spike edge
+                    let spikeDownA = [this.x - worldPos, - this.gap / 2 - this.height_offset];
+                    let spikeDownB = [spikeDownX, spikeDownY];
+                    let spikeUpA = [this.x - worldPos, gCanvasHeight + this.gap / 2 - this.height_offset];
+                    let spikeUpB = [spikeUpX, spikeUpY];
+
+                    let planeVector = [x - spikeDownA[0], y - spikeDownA[1]];
+                    let spikeDownVector = [spikeDownB[0] - spikeDownA[0], spikeDownB[1] - spikeDownA[1]]
+                    let spikeUpVector = [spikeUpB[0] - spikeUpA[0], spikeUpB[1] - spikeUpA[1]]
+
+                    let dotPart = this.dot(planeVector, spikeDownVector) / this.dot(spikeDownVector, spikeDownVector);
+                    let projectionVector = [spikeDownVector[0] * dotPart, spikeDownVector[1] * dotPart];
+                    let spikeDownProjectionPoint = [projectionVector[0] + spikeDownA[0], projectionVector[1] + spikeDownA[1]];
+
+                    planeVector = [x - spikeUpA[0], y - spikeUpA[1]];
+                    dotPart = this.dot(planeVector, spikeUpVector) / this.dot(spikeUpVector, spikeUpVector);
+                    projectionVector = [spikeUpVector[0] * dotPart, spikeUpVector[1] * dotPart];
+                    let spikeUpProjectionPoint = [projectionVector[0] + spikeUpA[0], projectionVector[1] + spikeUpA[1]];
+
+                    if((spikeDownProjectionPoint[1] < spikeDownY && 
+                        Math.pow(spikeDownProjectionPoint[0] - x, 2) + Math.pow(spikeDownProjectionPoint[1] - y, 2) < (r * r)) || 
+                        (spikeUpProjectionPoint[1] > spikeUpY && 
+                        Math.pow(spikeUpProjectionPoint[0] - x, 2) + Math.pow(spikeUpProjectionPoint[1] - y, 2) < (r * r))){
+                            return true;
+                    }
+                }
+
+                dot(a, b) {
+                    return a.map((x, i) => a[i] * b[i]).reduce((m, n) => m + n);
                 }
             }
 
@@ -542,11 +596,15 @@
 
                     var currentFrame = this.plane_frames[this.currentFrameIndex];
                     currentFrame.draw(context, this.posX, this.posY, scale);
-                    gDynamicContext.beginPath();
-                    gDynamicContext.arc(this.posX + this.plane_frames[0].width / 2 * gCanvasAspectRatio / 2, 
-                                        this.posY + this.plane_frames[0].height / 2 * gCanvasAspectRatio / 2, 
-                                        PLANE_CIRCLE_COLLISION_RADIUS, 0, 2 * Math.PI);
-                    gDynamicContext.stroke();
+
+
+                    if(SHOW_COLLISION_SHAPES){
+                        gDynamicContext.beginPath();
+                        gDynamicContext.arc(this.posX + this.plane_frames[0].width / 4 * gCanvasAspectRatio, 
+                                            this.posY + this.plane_frames[0].height / 4 * gCanvasAspectRatio, 
+                                            PLANE_CIRCLE_COLLISION_RADIUS, 0, 2 * Math.PI);
+                        gDynamicContext.stroke();
+                    }
                 }
 
                 die(){

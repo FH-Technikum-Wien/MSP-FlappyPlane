@@ -39,8 +39,15 @@
             const PLANE_SCALE = 0.55;
             // Additional offset from the middle to give player more view
             const PLANE_OFFSET = 50;
-
+            // Defines the duration of the whole animation 
             const PLANE_ANIMATION_SPEED = 0.2;
+
+            // CanvasWidth is normal distance, this is applied to it
+            const SPIKE_DISTANCE_FACTOR = 0.8;
+            // How much the spikes can vary in gap
+            const SPIKE_GAP_RANGE = [150, 280];
+            // How much the spikes can vary in height
+            const SPIKE_HEIGHT_RANGE = [-50, 100];
 
             // Used to render moving images (redrawn)
             var gDynamicContext;
@@ -75,6 +82,14 @@
             var gLetterL;
             var gLetterA;
             var gLetterY;
+
+            // Spikes
+            var gSpikeUp;
+            var gSpikeDown;
+
+            // Left, middle and right spikes
+            var gSpikes = [];
+            var gSpikeDistance = 0;
 
             const GameState = {
                 NONE: 0,
@@ -116,14 +131,7 @@
 
                 // Mouse events
                 window.onmousedown = function(mouse){
-                    if(gGameState == GameState.PLAYING){
-                        gPlane.jump();
-                    }
-                    if(gGameState == GameState.START_MENU || gGameState == GameState.GAME_OVER){
-                        if(gButtonPlay.isInside(mouse.clientX, mouse.clientY)){
-                            gGameState = GameState.PLAYING;
-                        }
-                    }
+                    onMouseClick(mouse);
                 }
 
                 // Load sprite sheet
@@ -132,6 +140,10 @@
                     runGame();
                 }
                 sheet.src = "sheet.png";
+            }
+
+            function getTimestamp(){
+                return window.performance ? window.performance.now() : Date.now();
             }
 
             function runGame(){
@@ -144,7 +156,7 @@
                 backgroundSprite.draw(gStaticContext, 0, 0);
 
                 // Ground that will be moving to simulate movement
-                gGround = new Sprite(sheet, 0, 142, 808, 71, gCanvasAspectRatio);
+                gGround = new Sprite(sheet, 0, 0, 807, 71, gCanvasAspectRatio);
                 // Move the second ground to start position
                 gNextGroundPosX = gGround.width * gCanvasAspectRatio;
 
@@ -154,13 +166,20 @@
                 var plane_frame3 = new Sprite(sheet, 222, 1562, 88, 73, gCanvasAspectRatio);
                 gPlane = new Plane(plane_frame1, plane_frame2, plane_frame3, PLANE_ANIMATION_SPEED);
 
-
+                // Play button sprites
                 gButtonLarge = new Sprite(sheet, 0, 1250, 196, 70, gCanvasAspectRatio);
                 gLetterP = new Sprite(sheet, 489, 1427, 48, 65, gCanvasAspectRatio);
                 gLetterL = new Sprite(sheet, 512, 899, 44, 64, gCanvasAspectRatio);
                 gLetterA = new Sprite(sheet, 412, 835, 61, 64, gCanvasAspectRatio);
                 gLetterY = new Sprite(sheet, 432, 1473, 57, 64, gCanvasAspectRatio);
 
+                // Spikes
+                gSpikeUp = new Sprite(sheet, 0, 1757, 108, 239, gCanvasAspectRatio);
+                gSpikeDown = new Sprite(sheet, 265, 986, 106, 238, gCanvasAspectRatio);
+                
+                gSpikeDistance = gCanvasWidth * SPIKE_DISTANCE_FACTOR;
+
+                setupSpikes();
 
                 var last = getTimestamp();
                 let deltaAccumulator = 0;
@@ -186,39 +205,6 @@
                 window.requestAnimationFrame(loop)
             }
 
-            function getTimestamp(){
-                return window.performance ? window.performance.now() : Date.now();
-            }
-
-            function update(delta){
-                if(gGameState == GameState.GAME_OVER){
-                    return;                    
-                }
-
-                // If the current ground is out of view, update positions
-                if(gPlane.worldPosX > gNextGroundPosX){
-                        gGroundPosX = gNextGroundPosX;
-                        gNextGroundPosX = gNextGroundPosX + gGround.width * gCanvasAspectRatio;
-                }
-                // Move along x
-                gPlane.worldPosX += PLANE_SPEED * delta;
-
-                // TODO: Add collision
-                if(gGameState == GameState.PLAYING){
-                    gPlane.update(delta);
-                }
-            }
-
-            
-            function render(delta){      
-                // TODO: Add second canvas for drawing?          
-                // Remove everything from dynamic canvas
-                gDynamicContext.clearRect(0,0, gCanvasWidth, gCanvasHeight);
-                renderGrounds(gDynamicContext);
-                renderPlane(gDynamicContext, delta);
-                // TODO: Add spikes
-            }
-
             function updateGameState() {
                 // Start of game
                 if(gGameState == GameState.START_MENU && gPrevGameState != GameState.START_MENU){
@@ -230,24 +216,86 @@
                     addPlayButton();
                     gPrevGameState = gGameState;
                 }
-                // Player pressed play after dying
-                if(gGameState == GameState.PLAYING && gPrevGameState == GameState.GAME_OVER){
-                    resetGame();
-                }
 
                 // Player pressed start
                 if(gGameState == GameState.PLAYING && gPrevGameState != GameState.PLAYING){
+                    resetGame();
                     clearUICanvas();
                     gPrevGameState = gGameState;
                 }
             }
 
+            function update(delta){
+                if(gGameState == GameState.GAME_OVER){
+                    return;                    
+                }
+
+                // Move along x
+                gPlane.worldPosX += PLANE_SPEED * delta;
+
+                // If the current ground is out of view, update positions
+                if(gPlane.worldPosX > gNextGroundPosX){
+                        gGroundPosX = gNextGroundPosX;
+                        gNextGroundPosX = gNextGroundPosX + gGround.width * gCanvasAspectRatio;
+                }
+
+                // TODO: Add collision
+                if(gGameState != GameState.PLAYING){
+                    return
+                }
+                
+                gPlane.update(delta);
+
+                // If player reached middle spike, move left to right
+                if(gPlane.worldPosX > gSpikes[1].x){
+                    var newRightSpike = gSpikes[0];
+                    gSpikes[0] = gSpikes[1];
+                    gSpikes[1] = gSpikes[2];
+                    // Give it new height and gap
+                    newRightSpike.setRandomGapAndHeight(SPIKE_GAP_RANGE, SPIKE_HEIGHT_RANGE);
+                    newRightSpike.x += gSpikeDistance * 3;
+                    gSpikes[2] = newRightSpike;
+                }
+            }
+            
+            function render(delta){              
+                // Remove everything from dynamic canvas
+                gDynamicContext.clearRect(0,0, gCanvasWidth, gCanvasHeight);
+
+                if(gGameState != GameState.START_MENU){
+                    renderSpikes(gDynamicContext);
+                }
+
+                renderGrounds(gDynamicContext);
+                renderPlane(gDynamicContext, delta);
+            }
+
+            // Resets all necessary variables
             function resetGame() {
+                setupSpikes();
                 gGroundPosX = 0;
                 gNextGroundPosX = gGround.width * gCanvasAspectRatio;
                 gPlane.reset();
             }
 
+            function setupSpikes() {
+                gSpikes.length = 0;
+                // Add three spikes, 2 visible at once, one can be moved
+                let spike = new Spike(gSpikeUp, gSpikeDown, gCanvasWidth);
+                spike.setRandomGapAndHeight(SPIKE_GAP_RANGE, SPIKE_HEIGHT_RANGE);
+                gSpikes.push(spike);
+                spike = new Spike(gSpikeUp, gSpikeDown,  gCanvasWidth + gSpikeDistance);
+                spike.setRandomGapAndHeight(SPIKE_GAP_RANGE, SPIKE_HEIGHT_RANGE);
+                gSpikes.push(spike);
+                spike = new Spike(gSpikeUp, gSpikeDown, gCanvasWidth + gSpikeDistance * 2);
+                spike.setRandomGapAndHeight(SPIKE_GAP_RANGE, SPIKE_HEIGHT_RANGE);
+                gSpikes.push(spike);
+
+                gSpikePosX = gCanvasWidth;
+                gNextSpikePosX = gCanvasWidth + gSpikeDistance;
+            }
+
+            // Clears the UI
             function clearUICanvas(){
                 gUIContext.clearRect(0,0, gCanvasWidth, gCanvasHeight);
             }
@@ -263,6 +311,12 @@
                 // Move plane to middle (and apply offset)
                 var x = gCanvasWidth / 2 - (gPlane.plane_frames[0].width * gCanvasAspectRatio / 4) - PLANE_OFFSET;
                 gPlane.draw(context, PLANE_SCALE, delta);
+            }
+
+            function renderSpikes(context) {
+                gSpikes.forEach(spike => {
+                    spike.draw(context, gPlane.worldPosX);
+                });
             }
 
             function addPlayButton(){
@@ -305,6 +359,18 @@
                     );
             }
 
+            function onMouseClick(mouse){
+                if(gGameState == GameState.PLAYING){
+                    gPlane.jump();
+                }
+
+                if(gGameState == GameState.START_MENU || gGameState == GameState.GAME_OVER){
+                    if(gButtonPlay.isInside(mouse.clientX, mouse.clientY)){
+                        gGameState = GameState.PLAYING;
+                    }
+                }
+            }
+
             // A sprite consists of an image, size and position
             class Sprite{
                 constructor(image, x, y, width, height, aspectRatio){
@@ -342,6 +408,42 @@
                 isInside(mouseX, mouseY){
                     return  mouseX >= this.x && mouseX <= this.x + this.width &&
                             mouseY >= this.y && mouseY <= this.y + this.height;
+                }
+            }
+
+            class Spike{
+                constructor(spikeUp, spikeDown, x){
+                    this.spikeUp = spikeUp;
+                    this.spikeDown = spikeDown;
+                    this.x = x;
+                    this.gap = 0;
+                    this.height_offset = 0;
+                }
+
+                draw(context, x){
+                    this.spikeDown.draw(
+                        context, 
+                        this.x - x, 
+                        -this.gap / 2 - this.height_offset
+                    );
+                    this.spikeUp.draw(
+                        context, 
+                        this.x - x, 
+                        gCanvasHeight - this.spikeUp.height * gCanvasAspectRatio + this.gap / 2 - this.height_offset
+                    );
+                }
+
+                setRandomGapAndHeight(gapMinMax, heightMinMax){
+                    this.gap = this.randomBetween(gapMinMax[0], gapMinMax[1]);
+                    this.height_offset = this.randomBetween(heightMinMax[0], heightMinMax[1]);
+                }
+
+                randomBetween(min, max) {
+                    return Math.random() * (max - min) + min;
+                }
+
+                isCollidingWithCircle(x, r){
+
                 }
             }
 

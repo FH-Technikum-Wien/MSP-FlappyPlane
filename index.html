@@ -32,6 +32,8 @@
             // Additional offset from the middle to give player more view
             const PLANE_OFFSET = 50;
 
+            const PLANE_ANIMATION_SPEED = 0.2;
+
             // Used to render moving images (redrawn)
             var gDynamicContext;
             // Used to render static images
@@ -106,7 +108,7 @@
                 var plane_frame1 = new Sprite(sheet, 330, 1371, 88, 73, gCanvasAspectRatio);
                 var plane_frame2 = new Sprite(sheet, 372, 1132, 88, 73, gCanvasAspectRatio);
                 var plane_frame3 = new Sprite(sheet, 222, 1562, 88, 73, gCanvasAspectRatio);
-                gPlane = new Plane(plane_frame1, plane_frame2, plane_frame3);
+                gPlane = new Plane(plane_frame1, plane_frame2, plane_frame3, PLANE_ANIMATION_SPEED);
 
                 var last = getTimestamp();
                 let deltaAccumulator = 0;
@@ -117,7 +119,7 @@
                     var delta = (now - last) / 1000.0;
                     deltaAccumulator += delta;
 
-                    while(deltaAccumulator > FIXED_DELTA_TIME){
+                    while(deltaAccumulator >= FIXED_DELTA_TIME){
                         update(FIXED_DELTA_TIME);
                         deltaAccumulator -= FIXED_DELTA_TIME;
                     }
@@ -153,8 +155,7 @@
                 // Remove everything from dynamic canvas
                 gDynamicContext.clearRect(0,0, gCanvasWidth, gCanvasHeight);
                 renderGrounds(gDynamicContext);
-                // TODO: Add animation speed (framerate independent)
-                renderPlane(gDynamicContext);
+                renderPlane(gDynamicContext, delta);
                 // TODO: Add spikes
             }
 
@@ -165,10 +166,10 @@
                 gGround.draw(context, gNextGroundPosX - gPlane.posX, gCanvasHeight - gGround.height * gCanvasAspectRatio);
             }
 
-            function renderPlane(context){
+            function renderPlane(context, delta){
                 // Move plane to middle (and apply offset)
                 var x = gCanvasWidth / 2 - gPlane.plane_frames[0].width / 2 - PLANE_OFFSET;
-                gPlane.draw(context, x, gCanvasHeight / 2, PLANE_SCALE);
+                gPlane.draw(context, x, gCanvasHeight / 2, PLANE_SCALE, delta);
             }
 
             // A sprite consists of an image, size and position
@@ -200,7 +201,7 @@
             // Player controlled image
             // Contains an animation and positions
             class Plane{
-                constructor(plane_frame1, plane_frame2, plane_frame3){
+                constructor(plane_frame1, plane_frame2, plane_frame3, animationSpeed){
                     this.plane_frames = [];
                     this.plane_frames.push(plane_frame1);
                     this.plane_frames.push(plane_frame2);
@@ -208,12 +209,19 @@
                     this.currentFrameIndex = 0;
                     this.posX = 0;
                     this.posY = 0;
+                    this.animationAccumulator = 0;
+                    this.animationStep = animationSpeed / this.plane_frames.length;
                 }
 
-                draw(context, x, y, scale){
+                draw(context, x, y, scale, delta){
+                    this.animationAccumulator += delta;
+                    if(this.animationAccumulator >= this.animationStep){
+                        this.currentFrameIndex = ++this.currentFrameIndex % this.plane_frames.length;
+                        this.animationAccumulator -= this.animationStep
+                    }
+
                     var currentFrame = this.plane_frames[this.currentFrameIndex];
                     currentFrame.draw(context, x, y, scale);
-                    this.currentFrameIndex = ++this.currentFrameIndex % this.plane_frames.length;
                 }
             }
 

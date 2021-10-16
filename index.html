@@ -121,7 +121,6 @@
                     }
                     if(gGameState == GameState.START_MENU || gGameState == GameState.GAME_OVER){
                         if(gButtonPlay.isInside(mouse.clientX, mouse.clientY)){
-                            console.log("Mouse pressed play button")
                             gGameState = GameState.PLAYING;
                         }
                     }
@@ -226,11 +225,6 @@
                     addPlayButton();
                     gPrevGameState = gGameState;
                 }
-                // Player pressed start
-                if(gGameState == GameState.PLAYING && gPrevGameState != GameState.PLAYING){
-                    clearUICanvas();
-                    gPrevGameState = gGameState;
-                }
                 // Player died
                 if(gGameState == GameState.GAME_OVER && gPrevGameState == GameState.PLAYING){
                     addPlayButton();
@@ -240,9 +234,17 @@
                 if(gGameState == GameState.PLAYING && gPrevGameState == GameState.GAME_OVER){
                     resetGame();
                 }
+
+                // Player pressed start
+                if(gGameState == GameState.PLAYING && gPrevGameState != GameState.PLAYING){
+                    clearUICanvas();
+                    gPrevGameState = gGameState;
+                }
             }
 
             function resetGame() {
+                gGroundPosX = 0;
+                gNextGroundPosX = gGround.width * gCanvasAspectRatio;
                 gPlane.reset();
             }
 

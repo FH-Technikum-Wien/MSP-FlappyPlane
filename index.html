@@ -142,6 +142,7 @@
             // Score
             var gScore = 0;
             var gDigits = [];
+            var gScoreUpdated = false;
 
             const GameState = {
                 NONE: 0,
@@ -349,8 +350,14 @@
                     newRightSpike.x = gSpikes[2].x + gSpikeDistance;
                     gSpikes[2] = newRightSpike;
 
+                    gScoreUpdated = false;
+                }
+
+                if(gPlane.worldPosX > gSpikes[1].x - gPlane.posX + gPlane.plane_frames[0].width * PLANE_SCALE * gCanvasAspectRatio && !gScoreUpdated){
+                    gScoreUpdated = true;
                     gScore++;
                     updateScoreUI();
+                    
                 }
 
                 // Check if plane collides with any spikes

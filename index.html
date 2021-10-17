@@ -303,6 +303,7 @@
                 if(gGameState == GameState.PLAYING && gPrevGameState != GameState.PLAYING){
                     resetGame();
                     clearUICanvas();
+                    updateScoreUI();
                     gPrevGameState = gGameState;
                 }
             }

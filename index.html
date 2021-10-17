@@ -78,9 +78,16 @@
             ////////////////////////
 
             // The length of the effect
-            const SCREEN_FLASH_DURATION = 0.5;
+            const SCREEN_FLASH_DURATION = 0.25;
             // The refresh rate of the effect
             const SCREEN_FLASH_REFRESH_RATE = 1.0 / 30.0;
+
+            //////////////////////
+            /// SCORE SETTINGS ///
+            //////////////////////
+
+            // The scale applied to the score
+            const SCORE_SCALE = 0.5;
 
 
             ////////////////////////
@@ -131,6 +138,10 @@
             // Left, middle and right spikes
             var gSpikes = [];
             var gSpikeDistance = 0;
+
+            // Score
+            var gScore = 0;
+            var gDigits = [];
 
             const GameState = {
                 NONE: 0,
@@ -208,9 +219,9 @@
                 gNextGroundPosX = gGround.width * gCanvasAspectRatio;
 
                 // Get animation frames for plane
-                var plane_frame1 = new Sprite(sheet, 330, 1371, 88, 73, gCanvasAspectRatio);
-                var plane_frame2 = new Sprite(sheet, 372, 1132, 88, 73, gCanvasAspectRatio);
-                var plane_frame3 = new Sprite(sheet, 222, 1562, 88, 73, gCanvasAspectRatio);
+                var plane_frame1 = new Sprite(sheet, 330, 1371, 88, 72.5, gCanvasAspectRatio);
+                var plane_frame2 = new Sprite(sheet, 372, 1132, 88, 72.5, gCanvasAspectRatio);
+                var plane_frame3 = new Sprite(sheet, 222, 1562, 88, 72.5, gCanvasAspectRatio);
                 gPlane = new Plane(plane_frame1, plane_frame2, plane_frame3, PLANE_ANIMATION_SPEED);
 
                 // Play button sprites
@@ -227,6 +238,30 @@
                 gSpikeDistance = gCanvasWidth * SPIKE_DISTANCE_FACTOR;
 
                 setupSpikes();
+
+                // Setup numbers
+                let gDigit0 = new Sprite(sheet, 432, 1743, 53, 77, gCanvasAspectRatio);
+                let gDigit1 = new Sprite(sheet, 513, 1093, 37, 76, gCanvasAspectRatio);
+                let gDigit2 = new Sprite(sheet, 477, 1350, 51, 77, gCanvasAspectRatio);
+                let gDigit3 = new Sprite(sheet, 486, 1679, 51, 77, gCanvasAspectRatio);
+                let gDigit4 = new Sprite(sheet, 432, 1537, 55, 75, gCanvasAspectRatio);
+                let gDigit5 = new Sprite(sheet, 486, 1823, 50, 75, gCanvasAspectRatio);
+                let gDigit6 = new Sprite(sheet, 432, 1885, 53, 77, gCanvasAspectRatio);
+                let gDigit7 = new Sprite(sheet, 479, 1173, 51, 75, gCanvasAspectRatio);
+                let gDigit8 = new Sprite(sheet, 461, 899, 51, 77, gCanvasAspectRatio);
+                let gDigit9 = new Sprite(sheet, 459, 1962, 51, 77, gCanvasAspectRatio);
+
+                gDigits.push(gDigit0);
+                gDigits.push(gDigit1);
+                gDigits.push(gDigit2);
+                gDigits.push(gDigit3);
+                gDigits.push(gDigit4);
+                gDigits.push(gDigit5);
+                gDigits.push(gDigit6);
+                gDigits.push(gDigit7);
+                gDigits.push(gDigit8);
+                gDigits.push(gDigit9);
+
 
                 var last = getTimestamp();
                 let deltaAccumulator = 0;
@@ -312,6 +347,9 @@
                     newRightSpike.setRandomGapAndHeight(SPIKE_GAP_RANGE, SPIKE_HEIGHT_RANGE);
                     newRightSpike.x = gSpikes[2].x + gSpikeDistance;
                     gSpikes[2] = newRightSpike;
+
+                    gScore++;
+                    updateScoreUI();
                 }
 
                 // Check if plane collides with any spikes
@@ -360,6 +398,7 @@
                 gGroundPosX = 0;
                 gNextGroundPosX = gGround.width * gCanvasAspectRatio;
                 gPlane.reset();
+                gScore = 0;
             }
 
             // Creates three spikes: Left, middle, right
@@ -422,6 +461,28 @@
                         gCanvasHeight / 2, 
                         buttonScale
                     );
+            }
+
+            function updateScoreUI(){
+                // Clear old score
+                clearUICanvas();
+
+                // Get the amount of digits required to display the score
+                let digitCount = (Math.log10(gScore) | 0) + 1;
+
+                let width = gDigits[0].width * SCORE_SCALE * gCanvasAspectRatio;
+
+                let currentScore = gScore;
+                for(let i = 0; i < digitCount; i++){
+                    // Get digit number
+                    let currentDigit = currentScore % 10;
+                    // Move to next digit
+                    currentScore = (currentScore / 10) | 0;
+
+                    let offset = width * (i - digitCount / 2);
+                    // Draw with offset
+                    gDigits[currentDigit].draw(gUIContext, gCanvasWidth / 2 - offset - width, gCanvasHeight * 0.05, SCORE_SCALE)
+                }
             }
 
             // All on-click events

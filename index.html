@@ -37,6 +37,9 @@
             // Fixed step used for physics update
             const FIXED_DELTA_TIME = 1.0/60.0;
 
+            // Limit rendering
+            const RENDER_LIMIT = 1.0/60.0;
+
             // Delays the game over screen, when the player dies to the ground
             const PLAYER_DEAD_FROM_GROUND_DELAY = 0.5
             
@@ -68,9 +71,9 @@
             // CanvasWidth is normal distance, this is applied to it
             const SPIKE_DISTANCE_FACTOR = 0.75;
             // How much the spikes can vary in gap
-            const SPIKE_GAP_RANGE = [150, 280];
+            const SPIKE_GAP_RANGE = [150, 250];
             // How much the spikes can vary in height
-            const SPIKE_HEIGHT_RANGE = [-50, 100];
+            const SPIKE_HEIGHT_RANGE = [-70, 100];
 
 
             ////////////////////////
@@ -202,6 +205,7 @@
             }
 
             function getTimestamp(){
+                // If performance is supported, use it
                 return window.performance ? window.performance.now() : Date.now();
             }
 
@@ -266,12 +270,12 @@
 
                 var last = getTimestamp();
                 let deltaAccumulator = 0;
+                let renderAccumulator = 0;
                 // Main loop
-                var loop = function(timestamp){
+                var loop = function(){
 
                     updateGameState();
-
-                    // If performance is supported, use it
+                    
                     var now = getTimestamp();
                     var delta = (now - last) / 1000.0;
                     last = now;
@@ -282,7 +286,13 @@
                         deltaAccumulator -= FIXED_DELTA_TIME;
                     }
 
-                    render(delta);
+                    renderAccumulator += delta;
+                    if(renderAccumulator >= RENDER_LIMIT){
+                        render(delta);
+                        renderAccumulator -= RENDER_LIMIT;
+                    }
+
+                    
                     window.requestAnimationFrame(loop)
                 }
                 window.requestAnimationFrame(loop)
